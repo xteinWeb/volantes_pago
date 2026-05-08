@@ -417,13 +417,29 @@
             const netoMatch = text.match(/NETO A PAGAR\s*([\d\.]+)/);
             if (netoMatch) volante.netoAPagar = netoMatch[1];
 
-            // Devengados
-            const bonificacionMatch = text.match(/Bonificación\s*([\d\.]+)/);
-            if (bonificacionMatch) {
-                volante.devengados.push({
-                    concepto: "Bonificación",
-                    valor: bonificacionMatch[1]
-                });
+            // Devengados y Deducidos dinámicos
+            const blockMatch = text.match(/Deducidos\s*\n([\s\S]*?)NETO A PAGAR/);
+            if (blockMatch) {
+                const lines = blockMatch[1].trim().split('\n').map(l => l.trim()).filter(l => l !== '');
+                if (lines.length >= 2) {
+                    const parseAmount = (str) => parseInt(str.replace(/\./g, ''), 10);
+                    const totalDeducidos = parseAmount(lines[0]);
+                    
+                    let currentSum = 0;
+                    for (let j = 2; j < lines.length; j += 2) {
+                        const concepto = lines[j];
+                        const valorStr = lines[j+1];
+                        if (!valorStr) break;
+                        
+                        const valor = parseAmount(valorStr);
+                        if (totalDeducidos > 0 && currentSum < totalDeducidos) {
+                            volante.deducidos.push({ concepto, valor: valorStr });
+                            currentSum += valor;
+                        } else {
+                            volante.devengados.push({ concepto, valor: valorStr });
+                        }
+                    }
+                }
             }
 
             // Documento: formato X.XXX.XXX o XX.XXX.XXX o X.XXX.XXX.XXX o sin puntos
@@ -431,7 +447,11 @@
             const allDocs = text.match(/\b([1-9]\d{0,2}(?:\.\d{3}){2,3}|[1-9]\d{6,10})\b/g);
             if (allDocs) {
                 for (let d of allDocs) {
-                    if (!d.includes("900.621.056") && !d.includes("900621056") && d !== volante.netoAPagar && (!bonificacionMatch || d !== bonificacionMatch[1])) {
+                    if (d.includes("900.621.056") || d.includes("900621056") || d === volante.netoAPagar) continue;
+                    
+                    const isMonto = volante.devengados.some(dev => dev.valor === d) || volante.deducidos.some(ded => ded.valor === d);
+                    
+                    if (!isMonto) {
                         volante.documento = d;
                         break;
                     }
