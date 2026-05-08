@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Envío de Volante de Pagos a n8n</title>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            padding: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 1.5rem;
+            padding: 2.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+            background: linear-gradient(135deg, #a5b4fc, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin: 0;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        .form-control {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
+        .file-upload {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            border: 2px dashed var(--border-color);
+            border-radius: 1rem;
+            background: rgba(15, 23, 42, 0.4);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .file-upload:hover,
+        .file-upload.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .file-upload input[type="file"] {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .file-name {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-align: center;
+            word-break: break-all;
+        }
+
+        .btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            margin-top: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            opacity: 0.7;
+        }
+
+        .status {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            font-size: 0.875rem;
+            text-align: center;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .status.success {
+            display: block;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Spinner animation */
+        .spinner {
+            display: none;
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            position: absolute;
+            top: calc(50% - 0.75rem);
+            left: calc(50% - 0.75rem);
+        }
+
+        .btn.loading {
+            color: transparent;
+        }
+
+        .btn.loading .spinner {
+            display: block;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>Envío a n8n</h1>
+                <p>Sube tu volante de pagos en formato PDF</p>
+            </div>
+
+            <form id="uploadForm">
+
+
+                <div class="form-group">
+                    <label>Archivo PDF</label>
+                    <div class="file-upload" id="dropZone">
+                        <div class="file-icon">📄</div>
+                        <div class="file-name" id="fileName">Arrastra y suelta tu PDF aquí o haz clic para seleccionar
+                        </div>
+                        <input type="file" id="pdfFile" accept="application/pdf" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="submitBtn">
+                    Enviar Documento
+                    <div class="spinner"></div>
+                </button>
+                <button type="button" class="btn" id="testBtn"
+                    style="background-color: var(--card-bg); color: var(--primary); border: 1px solid var(--primary); margin-top: 0.5rem;">
+                    Enviar JSON de Prueba
+                    <div class="spinner" id="testSpinner"></div>
+                </button>
+            </form>
+
+            <div id="statusMessage" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configurar Worker de PDF.js
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        const form = document.getElementById('uploadForm');
+        const fileInput = document.getElementById('pdfFile');
+        const fileNameDisplay = document.getElementById('fileName');
+        const dropZone = document.getElementById('dropZone');
+        const submitBtn = document.getElementById('submitBtn');
+        const testBtn = document.getElementById('testBtn');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // Manejo visual de la carga de archivo
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                if (file.type !== 'application/pdf') {
+                    showStatus('Por favor, selecciona un archivo PDF válido.', 'error');
+                    fileInput.value = '';
+                    fileNameDisplay.textContent = 'Arrastra y suelta tu PDF aquí o haz clic para seleccionar';
+                } else {
+                    fileNameDisplay.textContent = file.name;
+                    hideStatus();
+                }
+            } else {
+                fileNameDisplay.textContent = 'Arrastra y suelta tu PDF aquí o haz clic para seleccionar';
+            }
+        });
+
+        // Eventos drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status ${type}`;
+        }
+
+        function hideStatus() {
+            statusMessage.className = 'status';
+        }
+
+        // Parseo del texto extraído de PDF
+        function parseVolantes(text) {
+            const separator = "ARTDECON DE COLOMBIA S.A.S";
+            const parts = text.split(separator);
+            const result = [];
+
+            for (let i = 1; i < parts.length; i++) {
+                const chunk = separator + parts[i];
+                try {
+                    const volante = parseSingleVolante(chunk);
+                    if (volante) result.push(volante);
+                } catch (e) {
+                    console.error("Error parseando un volante", e);
+                }
+            }
+            return result;
+        }
+
+        function parseSingleVolante(text) {
+            const volante = {
+                empresa: "ARTDECON DE COLOMBIA S.A.S",
+                nit: "900.621.056-1",
+                periodoLiquidacion: "",
+                concepto: "",
+                empleadoNombre: "",
+                documento: "",
+                contrato: "",
+                diasLaborados: "30",
+                netoAPagar: "",
+                devengados: [],
+                deducidos: []
+            };
+
+            // Periodo
+            // Busca fechas tipo "1 - 30 de Abr de 2026" en cualquier parte del texto del volante
+            const periodoMatch = text.match(/(\d{1,2}\s*-\s*\d{1,2}\s*de\s*[A-Za-z]+\.?\s*de\s*\d{4})/i);
+            if (periodoMatch) {
+                volante.periodoLiquidacion = periodoMatch[1].trim();
+            } else {
+                volante.periodoLiquidacion = "1 - 30 de Abr de 2026"; // Fallback en caso de no detectarlo
+            }
+
+            // Concepto Principal
+            if (text.includes("Prima Extra-Legal no salarial")) {
+                volante.concepto = "Prima Extra-Legal no salarial";
+            } else if (text.includes("Bonificación")) {
+                volante.concepto = "Bonificación";
+            }
+
+            // Contrato
+            const contratoMatch = text.match(/(CT\s*\d+)/);
+            if (contratoMatch) volante.contrato = contratoMatch[1];
+
+            // Días Laborados
+            const diasMatch = text.match(/Dias Laborados\s*[:]?\s*(\d+)/i);
+            if (diasMatch) volante.diasLaborados = diasMatch[1];
+
+            // Neto
+            const netoMatch = text.match(/NETO A PAGAR\s*([\d\.]+)/);
+            if (netoMatch) volante.netoAPagar = netoMatch[1];
+
+            // Devengados
+            const bonificacionMatch = text.match(/Bonificación\s*([\d\.]+)/);
+            if (bonificacionMatch) {
+                volante.devengados.push({
+                    concepto: "Bonificación",
+                    valor: bonificacionMatch[1]
+                });
+            }
+
+            // Documento: formato X.XXX.XXX o XX.XXX.XXX o X.XXX.XXX.XXX o sin puntos
+            // Buscamos todos los números largos y filtramos el NIT y los montos monetarios
+            const allDocs = text.match(/\b([1-9]\d{0,2}(?:\.\d{3}){2,3}|[1-9]\d{6,10})\b/g);
+            if (allDocs) {
+                for (let d of allDocs) {
+                    if (!d.includes("900.621.056") && !d.includes("900621056") && d !== volante.netoAPagar && (!bonificacionMatch || d !== bonificacionMatch[1])) {
+                        volante.documento = d;
+                        break;
+                    }
+                }
+            }
+
+            // Nombre del empleado (Heurística mejorada)
+            // Buscar un patrón de 2 a 5 palabras TODAS en MAYÚSCULAS
+            const nombreMatch = text.match(/\b([A-ZÑÁÉÍÓÚÄËÏÖÜ]{2,}(?:\s+[A-ZÑÁÉÍÓÚÄËÏÖÜ]{2,}){1,5})\b/g);
+            if (nombreMatch) {
+                for (let match of nombreMatch) {
+                    // Ignoramos frases conocidas en mayúsculas que no son nombres
+                    if (!match.includes("ARTDECON") && !match.includes("NETO A PAGAR") && !match.includes("DEVENGADOS") && !match.includes("DEDUCIDOS") && !match.includes("COLOMBIA")) {
+                        volante.empleadoNombre = match.trim();
+                        break;
+                    }
+                }
+            }
+
+            return volante;
+        }
+
+        // Envío de Prueba
+        testBtn.addEventListener('click', async () => {
+            hideStatus();
+            testBtn.disabled = true;
+            testBtn.classList.add('loading');
+            showStatus('Enviando datos de prueba...', 'success');
+
+            const webhookUrl = 'https://agentes.colchonessunmoon.com/webhook-test/325244a0-a4ed-437c-ae35-2f3c7b832940';
+
+            const testJson = [
+                {
+                    "empresa": "ARTDECON DE COLOMBIA S.A.S",
+                    "nit": "900.621.056-1",
+                    "periodoLiquidacion": "1 - 30 de Abr de 2026",
+                    "concepto": "Prima Extra-Legal no salarial",
+                    "empleadoNombre": "JUAN MANUEL ALVERNIA DIAZ",
+                    "documento": "1042244228",
+                    "contrato": "CT 2506",
+                    "diasLaborados": "30",
+                    "netoAPagar": "1.100.000",
+                    "correo": "jj131204@gmail.com",
+                    "devengados": [
+                        { "concepto": "Bonificación", "valor": "1.100.000" }
+                    ],
+                    "deducidos": []
+                },
+                {
+                    "empresa": "ARTDECON DE COLOMBIA S.A.S",
+                    "nit": "900.621.056-1",
+                    "periodoLiquidacion": "1 - 30 de Abr de 2026",
+                    "concepto": "Prima Extra-Legal no salarial",
+                    "empleadoNombre": "MOISES DAVID ALVAREZ VEGA",
+                    "documento": "1042244228",
+                    "contrato": "CT 2517",
+                    "diasLaborados": "30",
+                    "netoAPagar": "2.465.000",
+                    "correo": "jj131204@gmail.com",
+                    "devengados": [
+                        { "concepto": "Bonificación", "valor": "2.465.000" }
+                    ],
+                    "deducidos": []
+                }
+            ];
+
+            try {
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testJson)
+                });
+
+                if (response.ok) {
+                    showStatus('¡Prueba enviada con éxito!', 'success');
+                } else {
+                    const errorText = await response.text();
+                    showStatus(`Error del servidor: ${response.status} ${errorText.substring(0, 50)}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error enviando prueba:', error);
+                showStatus('Error de conexión. Verifica la consola.', 'error');
+            } finally {
+                testBtn.disabled = false;
+                testBtn.classList.remove('loading');
+            }
+        });
+
+        // Envío del formulario PDF
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideStatus();
+
+            const webhookUrl = 'https://agentes.colchonessunmoon.com/webhook-test/325244a0-a4ed-437c-ae35-2f3c7b832940';
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showStatus('Por favor, selecciona un archivo PDF.', 'error');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.classList.add('loading');
+            showStatus('Procesando PDF, extrayendo datos...', 'success');
+
+            try {
+                // Leer el archivo como ArrayBuffer
+                const arrayBuffer = await file.arrayBuffer();
+
+                // Cargar el PDF con pdf.js
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+
+                let fullText = "";
+
+                // Extraer texto de todas las páginas
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join('\n');
+                    fullText += pageText + "\n";
+                }
+
+                // Parsear los volantes
+                const volantes = parseVolantes(fullText);
+
+                if (volantes.length === 0) {
+                    showStatus('No se encontraron volantes válidos en el PDF.', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('loading');
+                    return;
+                }
+
+                showStatus(`Enviando ${volantes.length} volantes al servidor...`, 'success');
+
+                // Enviar como JSON al webhook
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(volantes)
+                });
+
+                if (response.ok) {
+                    showStatus(`¡Se enviaron ${volantes.length} volantes con éxito como JSON!`, 'success');
+                    form.reset();
+                    fileNameDisplay.textContent = 'Arrastra y suelta tu PDF aquí o haz clic para seleccionar';
+                } else {
+                    const errorText = await response.text();
+                    showStatus(`Error del servidor: ${response.status} ${errorText.substring(0, 50)}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error procesando o enviando el documento:', error);
+                showStatus('Error al procesar el archivo. Revisa la consola para más detalles.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('loading');
+            }
+        });
+    </script>
+</body>
+
+</html>
