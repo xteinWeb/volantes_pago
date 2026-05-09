@@ -356,10 +356,15 @@
             statusMessage.className = 'status';
         }
 
-        // Parseo del texto extraído de PDF
         function parseVolantes(text) {
-            const separator = "ARTDECON DE COLOMBIA S.A.S";
-            const parts = text.split(separator);
+            let separator = "ARTDECON DE COLOMBIA S.A.S";
+            let parts = text.split(separator);
+            
+            if (parts.length <= 1) {
+                separator = "TOP TALENT IN ACTION SAS";
+                parts = text.split(separator);
+            }
+
             const result = [];
 
             for (let i = 1; i < parts.length; i++) {
@@ -376,8 +381,8 @@
 
         function parseSingleVolante(text) {
             const volante = {
-                empresa: "ARTDECON DE COLOMBIA S.A.S",
-                nit: "900.621.056-1",
+                empresa: "",
+                nit: "",
                 periodoLiquidacion: "",
                 concepto: "",
                 empleadoNombre: "",
@@ -388,6 +393,16 @@
                 devengados: [],
                 deducidos: []
             };
+
+            // Empresa y Nit
+            if (text.includes("ARTDECON DE COLOMBIA S.A.S")) {
+                volante.empresa = "ARTDECON DE COLOMBIA S.A.S";
+            } else if (text.includes("TOP TALENT IN ACTION SAS")) {
+                volante.empresa = "TOP TALENT IN ACTION SAS";
+            }
+
+            const nitMatch = text.match(/Nit\.\s*([\d\.\-]+)/i);
+            if (nitMatch) volante.nit = nitMatch[1];
 
             // Periodo
             // Busca fechas tipo "1 - 30 de Abr de 2026" en cualquier parte del texto del volante
