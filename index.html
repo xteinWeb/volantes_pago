@@ -858,40 +858,45 @@
             }
         });
 
+        let isSubmitting = false;
+
         // Envío del formulario PDF/Excel
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (isSubmitting) return;
+            
             hideStatus();
-
+ 
             const webhookUrl = 'https://agentes.colchonessunmoon.com/webhook/325244a0-a4ed-437c-ae35-2f3c7b832940';
             const file = fileInput.files[0];
-
+ 
             if (!file) {
                 showStatus('Por favor, selecciona un archivo.', 'error');
                 return;
             }
-
+ 
+            isSubmitting = true;
             submitBtn.disabled = true;
             submitBtn.classList.add('loading');
             showStatus('Procesando archivo, extrayendo datos...', 'success');
-
+ 
             try {
                 // Leer el archivo como ArrayBuffer
                 const arrayBuffer = await file.arrayBuffer();
                 let volantes = [];
-
+ 
                 const fileExt = file.name.split('.').pop().toLowerCase();
                 const isExcel = fileExt === 'xls' || fileExt === 'xlsx';
-
+ 
                 if (isExcel) {
                     volantes = parseExcel(arrayBuffer);
                 } else {
                     // Cargar el PDF con pdf.js
                     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
                     const pdf = await loadingTask.promise;
-
+ 
                     let fullText = "";
-
+ 
                     // Extraer texto de todas las páginas
                     for (let i = 1; i <= pdf.numPages; i++) {
                         const page = await pdf.getPage(i);
@@ -899,11 +904,11 @@
                         const pageText = textContent.items.map(item => item.str).join('\n');
                         fullText += pageText + "\n";
                     }
-
+ 
                     // Parsear los volantes
                     volantes = parseVolantes(fullText);
                 }
-
+ 
                 // Agregar el ID de empresa a cada volante si no fue autodetectado
                 const idEmpresa = document.getElementById('empresaSelect').value;
                 volantes.forEach(volante => {
@@ -911,16 +916,17 @@
                         volante.id_empresa = idEmpresa;
                     }
                 });
-
+ 
                 if (volantes.length === 0) {
                     showStatus('No se encontraron volantes válidos en el PDF.', 'error');
+                    isSubmitting = false;
                     submitBtn.disabled = false;
                     submitBtn.classList.remove('loading');
                     return;
                 }
-
+ 
                 showStatus(`Enviando ${volantes.length} volantes al servidor...`, 'success');
-
+ 
                 // Enviar como JSON al webhook
                 const response = await fetch(webhookUrl, {
                     method: 'POST',
@@ -929,7 +935,7 @@
                     },
                     body: JSON.stringify(volantes)
                 });
-
+ 
                 if (response.ok) {
                     showStatus(`¡Se enviaron ${volantes.length} volantes con éxito como JSON!`, 'success');
                     form.reset();
@@ -942,6 +948,7 @@
                 console.error('Error procesando o enviando el documento:', error);
                 showStatus('Error al procesar el archivo. Revisa la consola para más detalles.', 'error');
             } finally {
+                isSubmitting = false;
                 submitBtn.disabled = false;
                 submitBtn.classList.remove('loading');
             }
