@@ -7,6 +7,8 @@
     <title>Envío de Volante de Pagos a n8n</title>
     <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <!-- SheetJS for Excel parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -250,7 +252,7 @@
         <div class="card">
             <div class="header">
                 <h1>Envío a n8n</h1>
-                <p>Sube tu volante de pagos en formato PDF</p>
+                <p>Sube tu volante de pagos en formato PDF o Excel</p>
             </div>
 
             <form id="uploadForm">
@@ -266,12 +268,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Archivo PDF</label>
+                    <label>Archivo PDF o Excel</label>
                     <div class="file-upload" id="dropZone">
                         <div class="file-icon">📄</div>
-                        <div class="file-name" id="fileName">Arrastra y suelta tu PDF aquí o haz clic para seleccionar
+                        <div class="file-name" id="fileName">Arrastra y suelta tu PDF o Excel aquí o haz clic para
+                            seleccionar
                         </div>
-                        <input type="file" id="pdfFile" accept="application/pdf" required>
+                        <input type="file" id="pdfFile" accept="application/pdf, .xls, .xlsx" required>
                     </div>
                 </div>
 
@@ -307,16 +310,21 @@
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 const file = e.target.files[0];
-                if (file.type !== 'application/pdf') {
-                    showStatus('Por favor, selecciona un archivo PDF válido.', 'error');
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                const isValid = file.type === 'application/pdf' ||
+                    file.type === 'application/vnd.ms-excel' ||
+                    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                    ['xls', 'xlsx'].includes(fileExt);
+                if (!isValid) {
+                    showStatus('Por favor, selecciona un archivo PDF o Excel (.xls, .xlsx) válido.', 'error');
                     fileInput.value = '';
-                    fileNameDisplay.textContent = 'Arrastra y suelta tu PDF aquí o haz clic para seleccionar';
+                    fileNameDisplay.textContent = 'Arrastra y suelta tu PDF o Excel aquí o haz clic para seleccionar';
                 } else {
                     fileNameDisplay.textContent = file.name;
                     hideStatus();
                 }
             } else {
-                fileNameDisplay.textContent = 'Arrastra y suelta tu PDF aquí o haz clic para seleccionar';
+                fileNameDisplay.textContent = 'Arrastra y suelta tu PDF o Excel aquí o haz clic para seleccionar';
             }
         });
 
@@ -377,6 +385,263 @@
                 }
             }
             return result;
+        }
+
+        function parseExcel(arrayBuffer) {
+            console.log("parseExcel: Iniciando lectura del archivo...");
+            const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+
+            // Convertir la hoja a una matriz bidimensional (2D array)
+            const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+            console.log("parseExcel: Datos cargados del excel. Filas totales:", data.length);
+
+            const volantes = [];
+            const numRows = data.length;
+
+            function cleanVal(val) {
+                if (val === null || val === undefined) return "";
+                return String(val).trim();
+            }
+
+            function formatNumber(val) {
+                if (val === null || val === undefined || val === "") return "";
+                const num = Math.abs(Number(val));
+                if (isNaN(num)) return String(val).trim();
+
+                // Formatear a separador de miles con punto (ej: 1.060.000)
+                return num.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            }
+
+            const selectedEmpresaId = document.getElementById('empresaSelect').value;
+            let r = 0;
+
+            while (r < numRows) {
+                const row = data[r] || [];
+
+                // Buscar si esta fila contiene el nombre de alguna de las empresas
+                let empresa = "";
+                let empresaColIdx = -1;
+                for (let c = 0; c < row.length; c++) {
+                    const val = cleanVal(row[c]);
+                    if (val.includes("TOP TALENT") || val.includes("ARTDECON")) {
+                        empresa = val;
+                        empresaColIdx = c;
+                        break;
+                    }
+                }
+
+                if (!empresa) {
+                    r++;
+                    continue;
+                }
+
+                const startRow = r;
+                console.log("parseExcel: Encontrado inicio de bloque en fila " + startRow + " (" + empresa + ")");
+
+                // El NIT está en la misma columna en la fila siguiente
+                let nit = "";
+                if (startRow + 1 < numRows) {
+                    nit = cleanVal(data[startRow + 1][empresaColIdx]);
+                    if (nit.toLowerCase().startsWith("nit.")) {
+                        nit = nit.substring(4).trim();
+                    }
+                }
+
+                // Función helper para buscar etiquetas en el bloque
+                function getValueAfterLabel(labelText, maxSearch = 6) {
+                    for (let offset = 1; offset < maxSearch; offset++) {
+                        const currR = startRow + offset;
+                        if (currR >= numRows) break;
+                        const currRow = data[currR] || [];
+                        for (let cIdx = 0; cIdx < currRow.length; cIdx++) {
+                            const val = cleanVal(currRow[cIdx]);
+                            if (val.toLowerCase().includes(labelText.toLowerCase())) {
+                                // Buscar el primer valor no vacío después de esta etiqueta
+                                for (let nextC = cIdx + 1; nextC < currRow.length; nextC++) {
+                                    const nextVal = cleanVal(currRow[nextC]);
+                                    if (nextVal !== "" && nextVal !== ":") {
+                                        return nextVal;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    return "";
+                }
+
+                let periodo = getValueAfterLabel("Periodo");
+                if (!periodo) {
+                    periodo = getValueAfterLabel("Periodo Liq");
+                }
+
+                let concepto = "";
+                if (startRow + 2 < numRows) {
+                    concepto = cleanVal(data[startRow + 2][empresaColIdx]);
+                }
+
+                const contrato = getValueAfterLabel("Contrato");
+
+                let nombre = "";
+                if (startRow + 3 < numRows) {
+                    nombre = cleanVal(data[startRow + 3][empresaColIdx]);
+                }
+
+                let documento = "";
+                if (startRow + 4 < numRows) {
+                    documento = cleanVal(data[startRow + 4][empresaColIdx]);
+                    if (documento.endsWith(".0")) {
+                        documento = documento.substring(0, documento.length - 2);
+                    }
+                }
+
+                let dias = getValueAfterLabel("Dias Laborados");
+                if (dias.endsWith(".0")) {
+                    dias = dias.substring(0, dias.length - 2);
+                }
+
+                let isBono = false;
+                let netoFormatted = "";
+                const devengados = [];
+                const deducidos = [];
+
+                // Determinar si es BONO buscando "NETO A PAGAR" en startRow + 5
+                if (startRow + 5 < numRows) {
+                    const row5 = data[startRow + 5] || [];
+                    for (let cIdx = 0; cIdx < row5.length; cIdx++) {
+                        const val = cleanVal(row5[cIdx]);
+                        if (val.toLowerCase().includes("neto a pagar")) {
+                            isBono = true;
+                            for (let nextC = cIdx + 1; nextC < row5.length; nextC++) {
+                                const nextVal = row5[nextC];
+                                if (nextVal !== null && nextVal !== undefined && String(nextVal).trim() !== "") {
+                                    netoFormatted = formatNumber(nextVal);
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                console.log("parseExcel: isBono=" + isBono + " para " + nombre);
+
+                if (isBono) {
+                    if (concepto && netoFormatted) {
+                        devengados.push({
+                            concepto: concepto,
+                            valor: netoFormatted
+                        });
+                    }
+                    r = startRow + 8; // Avanzar el bloque de 8 filas fijo del Bono
+                } else {
+                    // Es formato BÁSICO con tamaño de filas dinámico
+                    let currR = startRow + 5;
+                    let state = "init"; // init -> devengados -> deducidos -> neto -> done
+
+                    while (currR < numRows && state !== "done") {
+                        const rowData = data[currR] || [];
+
+                        // Generar un string consolidado de la fila para verificar etiquetas
+                        const rowStr = rowData.map(x => cleanVal(x)).join(" ").toLowerCase();
+
+                        if (rowStr.includes("devengados") && !rowStr.includes("total")) {
+                            state = "devengados";
+                            currR += 2; // Saltar la fila "DEVENGADOS" y la cabecera "Conceptos / Valor Liquidado"
+                            continue;
+                        } else if (rowStr.includes("deducidos") && !rowStr.includes("total")) {
+                            state = "deducidos";
+                            currR += 1; // Saltar la fila "DEDUCIDOS"
+                            continue;
+                        } else if (rowStr.includes("neto a pagar")) {
+                            for (let cIdx = 0; cIdx < rowData.length; cIdx++) {
+                                if (cleanVal(rowData[cIdx]).toLowerCase().includes("neto a pagar")) {
+                                    for (let nextC = cIdx + 1; nextC < rowData.length; nextC++) {
+                                        const nextVal = rowData[nextC];
+                                        if (nextVal !== null && nextVal !== undefined && String(nextVal).trim() !== "") {
+                                            netoFormatted = formatNumber(nextVal);
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                            state = "done";
+                            currR += 1;
+                            continue;
+                        } else if (rowStr.includes("total devengado") || rowStr.includes("total deducido")) {
+                            currR += 1;
+                            continue;
+                        }
+
+                        // Parsear los conceptos dependiendo del estado actual
+                        if (state === "devengados") {
+                            const conceptName = cleanVal(rowData[0]);
+                            let valLiquidado = "";
+                            for (let cVal = rowData.length - 1; cVal >= 0; cVal--) {
+                                const valStr = cleanVal(rowData[cVal]);
+                                if (valStr !== "") {
+                                    valLiquidado = formatNumber(rowData[cVal]);
+                                    break;
+                                }
+                            }
+                            console.log("parseExcel: [DEV] Fila " + currR + " -> concepto=" + conceptName + ", valor=" + valLiquidado);
+                            if (conceptName && valLiquidado) {
+                                devengados.push({
+                                    concepto: conceptName,
+                                    valor: valLiquidado
+                                });
+                            }
+                        } else if (state === "deducidos") {
+                            const conceptName = cleanVal(rowData[0]);
+                            let valLiquidado = "";
+                            for (let cVal = rowData.length - 1; cVal >= 0; cVal--) {
+                                const valStr = cleanVal(rowData[cVal]);
+                                if (valStr !== "") {
+                                    valLiquidado = formatNumber(rowData[cVal]);
+                                    break;
+                                }
+                            }
+                            console.log("parseExcel: [DED] Fila " + currR + " -> concepto=" + conceptName + ", valor=" + valLiquidado);
+                            if (conceptName && valLiquidado) {
+                                deducidos.push({
+                                    concepto: conceptName,
+                                    valor: valLiquidado
+                                });
+                            }
+                        }
+
+                        currR++;
+                    }
+                    r = currR;
+                }
+
+                let idEmpresa = selectedEmpresaId;
+                if (empresa.includes("TOP TALENT")) {
+                    idEmpresa = "1";
+                } else if (empresa.includes("ARTDECON")) {
+                    idEmpresa = "2";
+                }
+
+                volantes.push({
+                    id_empresa: idEmpresa,
+                    empresa: empresa,
+                    nit: nit,
+                    periodoLiquidacion: periodo,
+                    concepto: concepto,
+                    empleadoNombre: nombre,
+                    documento: documento,
+                    contrato: contrato,
+                    diasLaborados: dias,
+                    netoAPagar: netoFormatted,
+                    devengados: devengados,
+                    deducidos: deducidos
+                });
+            }
+
+            console.log(`parseExcel: Extracción finalizada. Se encontraron ${volantes.length} volantes.`);
+            return volantes;
         }
 
         function parseSingleVolante(text) {
@@ -593,7 +858,7 @@
             }
         });
 
-        // Envío del formulario PDF
+        // Envío del formulario PDF/Excel
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             hideStatus();
@@ -602,39 +867,49 @@
             const file = fileInput.files[0];
 
             if (!file) {
-                showStatus('Por favor, selecciona un archivo PDF.', 'error');
+                showStatus('Por favor, selecciona un archivo.', 'error');
                 return;
             }
 
             submitBtn.disabled = true;
             submitBtn.classList.add('loading');
-            showStatus('Procesando PDF, extrayendo datos...', 'success');
+            showStatus('Procesando archivo, extrayendo datos...', 'success');
 
             try {
                 // Leer el archivo como ArrayBuffer
                 const arrayBuffer = await file.arrayBuffer();
+                let volantes = [];
 
-                // Cargar el PDF con pdf.js
-                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-                const pdf = await loadingTask.promise;
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                const isExcel = fileExt === 'xls' || fileExt === 'xlsx';
 
-                let fullText = "";
+                if (isExcel) {
+                    volantes = parseExcel(arrayBuffer);
+                } else {
+                    // Cargar el PDF con pdf.js
+                    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                    const pdf = await loadingTask.promise;
 
-                // Extraer texto de todas las páginas
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map(item => item.str).join('\n');
-                    fullText += pageText + "\n";
+                    let fullText = "";
+
+                    // Extraer texto de todas las páginas
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        const pageText = textContent.items.map(item => item.str).join('\n');
+                        fullText += pageText + "\n";
+                    }
+
+                    // Parsear los volantes
+                    volantes = parseVolantes(fullText);
                 }
 
-                // Parsear los volantes
-                const volantes = parseVolantes(fullText);
-
-                // Agregar el ID de empresa a cada volante
+                // Agregar el ID de empresa a cada volante si no fue autodetectado
                 const idEmpresa = document.getElementById('empresaSelect').value;
                 volantes.forEach(volante => {
-                    volante.id_empresa = idEmpresa;
+                    if (!volante.id_empresa) {
+                        volante.id_empresa = idEmpresa;
+                    }
                 });
 
                 if (volantes.length === 0) {
@@ -658,7 +933,7 @@
                 if (response.ok) {
                     showStatus(`¡Se enviaron ${volantes.length} volantes con éxito como JSON!`, 'success');
                     form.reset();
-                    fileNameDisplay.textContent = 'Arrastra y suelta tu PDF aquí o haz clic para seleccionar';
+                    fileNameDisplay.textContent = 'Arrastra y suelta tu PDF o Excel aquí o haz clic para seleccionar';
                 } else {
                     const errorText = await response.text();
                     showStatus(`Error del servidor: ${response.status} ${errorText.substring(0, 50)}`, 'error');
