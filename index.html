@@ -303,7 +303,7 @@
         const fileNameDisplay = document.getElementById('fileName');
         const dropZone = document.getElementById('dropZone');
         const submitBtn = document.getElementById('submitBtn');
-        const testBtn = document.getElementById('testBtn');
+        // const testBtn = document.getElementById('testBtn');
         const statusMessage = document.getElementById('statusMessage');
 
         // Manejo visual de la carga de archivo
@@ -783,81 +783,6 @@
         }
 
         // Envío de Prueba
-        testBtn.addEventListener('click', async () => {
-            const idEmpresa = document.getElementById('empresaSelect').value;
-            if (!idEmpresa) {
-                showStatus('Por favor, selecciona una empresa antes de enviar la prueba.', 'error');
-                return;
-            }
-
-            hideStatus();
-            testBtn.disabled = true;
-            testBtn.classList.add('loading');
-            showStatus('Enviando datos de prueba...', 'success');
-
-            const webhookUrl = 'https://agentes.colchonessunmoon.com/webhook/325244a0-a4ed-437c-ae35-2f3c7b832940';
-
-            // const webhookUrl = 'https://agentes.colchonessunmoon.com/webhook-test/325244a0-a4ed-437c-ae35-2f3c7b832940';
-
-            const testJson = [
-                {
-                    "id_empresa": idEmpresa,
-                    "empresa": "ARTDECON DE COLOMBIA S.A.S",
-                    "nit": "900.621.056-1",
-                    "periodoLiquidacion": "1 - 30 de Abr de 2026",
-                    "concepto": "Prima Extra-Legal no salarial",
-                    "empleadoNombre": "JUAN MANUEL ALVERNIA DIAZ",
-                    "documento": "1042244228",
-                    "contrato": "CT 2506",
-                    "diasLaborados": "30",
-                    "netoAPagar": "1.100.000",
-                    "correo": "jj131204@gmail.com",
-                    "devengados": [
-                        { "concepto": "Bonificación", "valor": "1.100.000" }
-                    ],
-                    "deducidos": []
-                },
-                {
-                    "id_empresa": idEmpresa,
-                    "empresa": "ARTDECON DE COLOMBIA S.A.S",
-                    "nit": "900.621.056-1",
-                    "periodoLiquidacion": "1 - 30 de Abr de 2026",
-                    "concepto": "Prima Extra-Legal no salarial",
-                    "empleadoNombre": "MOISES DAVID ALVAREZ VEGA",
-                    "documento": "1042244228",
-                    "contrato": "CT 2517",
-                    "diasLaborados": "30",
-                    "netoAPagar": "2.465.000",
-                    "correo": "jj131204@gmail.com",
-                    "devengados": [
-                        { "concepto": "Bonificación", "valor": "2.465.000" }
-                    ],
-                    "deducidos": []
-                }
-            ];
-
-            try {
-                const response = await fetch(webhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(testJson)
-                });
-
-                if (response.ok) {
-                    showStatus('¡Prueba enviada con éxito!', 'success');
-                } else {
-                    const errorText = await response.text();
-                    showStatus(`Error del servidor: ${response.status} ${errorText.substring(0, 50)}`, 'error');
-                }
-            } catch (error) {
-                console.error('Error enviando prueba:', error);
-                showStatus('Error de conexión. Verifica la consola.', 'error');
-            } finally {
-                testBtn.disabled = false;
-                testBtn.classList.remove('loading');
-            }
-        });
-
         let isSubmitting = false;
 
         // Envío del formulario PDF/Excel
