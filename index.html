@@ -365,23 +365,23 @@
         }
 
         function parseVolantes(text) {
-            let separator = "ARTDECON DE COLOMBIA S.A.S";
-            let parts = text.split(separator);
-
-            if (parts.length <= 1) {
-                separator = "TOP TALENT IN ACTION SAS";
-                parts = text.split(separator);
-            }
-
             const result = [];
+            const separators = [
+                "ARTDECON DE COLOMBIA S.A.S",
+                "TOP TALENT IN ACTION SAS",
+                "INVERSAN DE COLOMBIA S.A.S"
+            ];
 
-            for (let i = 1; i < parts.length; i++) {
-                const chunk = separator + parts[i];
-                try {
-                    const volante = parseSingleVolante(chunk);
-                    if (volante) result.push(volante);
-                } catch (e) {
-                    console.error("Error parseando un volante", e);
+            for (const separator of separators) {
+                const parts = text.split(separator);
+                for (let i = 1; i < parts.length; i++) {
+                    const chunk = separator + parts[i];
+                    try {
+                        const volante = parseSingleVolante(chunk);
+                        if (volante) result.push(volante);
+                    } catch (e) {
+                        console.error("Error parseando un volante", e);
+                    }
                 }
             }
             return result;
@@ -425,7 +425,7 @@
                 let empresaColIdx = -1;
                 for (let c = 0; c < row.length; c++) {
                     const val = cleanVal(row[c]);
-                    if (val.includes("TOP TALENT") || val.includes("ARTDECON")) {
+                    if (val.includes("TOP TALENT") || val.includes("ARTDECON") || val.includes("INVERSAN")) {
                         empresa = val;
                         empresaColIdx = c;
                         break;
@@ -845,7 +845,7 @@
                 });
  
                 if (volantes.length === 0) {
-                    showStatus('No se encontraron volantes válidos en el PDF.', 'error');
+                    showStatus('No se encontraron volantes válidos en el archivo.', 'error');
                     isSubmitting = false;
                     submitBtn.disabled = false;
                     submitBtn.classList.remove('loading');
